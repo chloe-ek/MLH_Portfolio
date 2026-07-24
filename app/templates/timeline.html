@@ -64,6 +64,31 @@
             line-height: 1.6;
             margin: 0;
         }
+
+        #toast {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%) translateY(20px);
+            background-color: #333;
+            color: #fff;
+            padding: 12px 20px;
+            border-radius: 6px;
+            font-size: 14px;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s, transform 0.2s;
+            z-index: 1000;
+        }
+
+        #toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        #toast.error {
+            background-color: #c0392b;
+        }
     </style>
     <title>{{ title }}</title>
 </head>
@@ -102,7 +127,19 @@
         </div>
     </section>
 
+    <div id="toast"></div>
+
     <script>
+        let toastTimer;
+        function showToast(message, isError = false) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.classList.toggle('error', isError);
+            toast.classList.add('show');
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
         async function loadPosts() {
             const res = await fetch('/api/timeline_post');
             const data = await res.json();
@@ -126,11 +163,21 @@
             formData.append('email', document.getElementById('email').value);
             formData.append('content', document.getElementById('content').value);
 
-            await fetch('/api/timeline_post', {
+            const res = await fetch('/api/timeline_post', {
                 method: 'POST',
                 body: new URLSearchParams(formData)
             });
 
+            if (res.status === 429 || res.status === 503) {
+                showToast('Too many requests. Please try again later', true);
+                return;
+            }
+            if (!res.ok) {
+                showToast('Failed to post the timeline post', true);
+                return;
+            }
+
+            showToast('Timeline post posted successfully');
             e.target.reset();
             loadPosts();
         });
