@@ -91,7 +91,7 @@ def index():
         {
             "name": "AWS Certified Solutions Architect – Associate",
             "credential": "SAA-C03",
-            "issued": "Jun 2026"
+            "issued": "Jun 25th, 2026"
         }
     ]
 
