@@ -141,7 +141,8 @@
         }
 
         async function loadPosts() {
-            const res = await fetch('/api/timeline_post');
+            const res = await fetch('/api/timeline_post'); 
+            if (!res.ok) return;
             const data = await res.json();
             const div = document.getElementById('posts');
             div.innerHTML = data.timeline_posts.map(p => `
