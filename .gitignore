@@ -6,3 +6,7 @@ python3-virtualenv
 flask.sqlite
 venv/
 .DS_Store
+.pytest_cache/
+
+
+
