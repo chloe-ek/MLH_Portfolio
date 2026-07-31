@@ -1,79 +1,149 @@
-# Production Engineering - Week 1 - Portfolio Site
+# MLH Portfolio
 
-Welcome to the MLH Fellowship! During Week 1, you'll be using Flask to build a portfolio site. This site will be the foundation for activities we do in future weeks so spend time this week making it your own and reflect your personality!
+A personal portfolio site built with Flask, MySQL/MariaDB, and Docker — created during the [MLH Fellowship](https://fellowship.mlh.io/) (Meta, Production Engineering track). It showcases my experience, education, and hobbies, and includes a small guestbook-style timeline feature backed by a real database, plus a live server status endpoint for basic observability.
 
-## Tasks
+**Live site:** [mlh-chloe.duckdns.org](https://mlh-chloe.duckdns.org)
 
-Once you've got your portfolio downloaded and running using the instructions below, you should attempt to complete the following tasks.
+## Features
 
-For each of these tasks, you should create an [Issue](https://docs.github.com/en/issues/tracking-your-work-with-issues/about-issues) and work on them in a new [branch](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/about-branches). When the task has been completed, you should open a [Pull Request](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/proposing-changes-to-your-work-with-pull-requests/about-pull-requests) and get another fellow in your pod to give you feedback before merging it in.
+- **Home page** — bio, work experience, education, and certifications, rendered from data via Jinja templates
+- **Hobbies page** — image gallery of hobbies, using the same reusable template pattern
+- **Timeline / guestbook** — visitors can leave a message (name, email, content) that's persisted to MySQL and displayed via a JSON API
+- **Status page** — live server health (CPU, memory, disk, DB connectivity) exposed through a `/api/system_status` endpoint
+- **Dynamic nav bar** — page list is defined once in the backend and rendered across every template
 
-*Note: Make sure to include a link to the Issue you're progressing on inside of your Pull Request so your reviewer knows what you're progressing on!*
+## Architecture
 
-### GitHub Tasks
-- [x] Create Issues for each task below
-- [x] Progress on each task in a new branch
-- [x] Open a Pull Request when a task is finished to get feedback
+```
+                    ┌────────────────────┐
+  HTTPS (443) ────► │  nginx (reverse     │
+  HTTP  (80)  ────► │  proxy + TLS)       │
+                    │  Let's Encrypt      │
+                    │  auto-renew via     │
+                    │  certbot            │
+                    └─────────┬──────────┘
+                              │ proxy_pass
+                              ▼
+                    ┌────────────────────┐
+                    │  Flask app          │
+                    │  (Gunicorn/Flask    │
+                    │   dev server)       │
+                    │  Jinja2 templates   │
+                    └─────────┬──────────┘
+                              │ Peewee ORM
+                              ▼
+                    ┌────────────────────┐
+                    │  MariaDB / MySQL    │
+                    └────────────────────┘
+```
 
-### Portfolio Tasks
-- [x] Add a photo of yourself to the website
-- [x] Add an "About youself" section to the website.
-- [x] Add your previous work experiences
-- [x] Add your hobbies (including images)
-- [x] Add your current/previous education
-- [x] Add a map of all the cool locations/countries you visited
+- **Backend:** [Flask](https://flask.palletsprojects.com/) serves both server-rendered HTML pages and a small JSON API.
+- **ORM/Database:** [Peewee](http://docs.peewee-orm.com/) models map to a MariaDB/MySQL instance for persisting timeline posts.
+- **Reverse proxy / TLS:** nginx sits in front of the app, terminates HTTPS with a Let's Encrypt certificate (auto-provisioned/renewed by [certbot](https://certbot.eff.org/)), and forwards requests to the Flask container.
+- **Rate limiting:** nginx applies `limit_req` to `POST /api/timeline_post` only (1 request/min per client IP), protecting the write path from abuse while leaving read traffic unrestricted.
+- **Containerization:** each layer (app, database, nginx) runs as its own service via Docker Compose, with a separate compose file for local development vs. production.
+- **Deployment:** `redeploy-site.sh` pulls the latest `main`, then rebuilds and restarts the production stack — a simple, scriptable deploy path for a small VPS.
 
-### Flask Tasks
-- [x] Get your Flask app running locally on your machine using the instructions below.
-- [x] Add a template for adding multiple work experiences/education/hobbies using [Jinja](https://jinja.palletsprojects.com/en/3.0.x/api/#basics)
-- [x] Create a new page to display hobbies.
-- [x] Add a menu bar that dynamically displays other pages in the app
+## Tech Stack
 
+| Layer | Technology |
+|---|---|
+| Backend | Python, Flask |
+| ORM | Peewee |
+| Database | MariaDB / MySQL |
+| Templating | Jinja2 |
+| Reverse proxy / TLS | nginx, Let's Encrypt (certbot) |
+| Containerization | Docker, Docker Compose |
+| Testing | pytest |
+
+## Project Structure
+
+```
+app/
+├── __init__.py          # Flask app, routes, Peewee models
+├── static/
+│   ├── img/              # site images
+│   └── styles/           # CSS
+└── templates/            # Jinja2 templates (index, hobbies, timeline, status)
+tests/
+├── conftest.py            # pytest fixtures (isolated in-memory SQLite for tests)
+├── test_app.py            # route/endpoint tests
+└── test_db.py              # Peewee model tests
+user_conf.d/
+└── myportfolio.conf       # nginx server config (TLS, reverse proxy, rate limiting)
+docker-compose.yml          # local development stack (app + MariaDB)
+docker-compose.prod.yml     # production stack (app + MariaDB + nginx/certbot)
+Dockerfile                  # Flask app image
+redeploy-site.sh             # pull latest main + rebuild/restart prod stack
+```
+
+## API Endpoints
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/` | Home page (about, experience, education, certifications) |
+| `GET` | `/hobbies` | Hobbies gallery page |
+| `GET` | `/timeline` | Timeline/guestbook page |
+| `GET` | `/api/timeline_post` | Returns all timeline posts as JSON, newest first |
+| `POST` | `/api/timeline_post` | Creates a timeline post (`name`, `email`, `content`) |
+| `GET` | `/status` | Server status page |
+| `GET` | `/api/system_status` | JSON snapshot of CPU, memory, disk usage, and DB connectivity |
 
 ## Getting Started
 
-You need to do all your progress here.
+### Option 1: Docker (recommended)
 
-## Installation
+This spins up the Flask app and a MariaDB database together.
 
-Make sure you have python3 and pip installed
-
-Create and activate virtual environment using virtualenv
 ```bash
-$ python -m venv python3-virtualenv
-$ source python3-virtualenv/bin/activate
+git clone https://github.com/chloe-ek/MLH_Portfolio.git
+cd MLH_Portfolio
+cp example.env .env   # fill in the values described below
+docker compose up --build
 ```
 
-Use the package manager [pip](https://pip.pypa.io/en/stable/) to install all dependencies!
+The site will be available at `http://localhost:5000`.
+
+### Option 2: Local Python environment
 
 ```bash
+python -m venv venv
+source venv/bin/activate
 pip install -r requirements.txt
+cp example.env .env   # fill in the values described below, pointing MYSQL_HOST at a running MySQL/MariaDB instance
+export FLASK_ENV=development
+flask run
 ```
 
-## Usage
+The site will be available at `http://localhost:5000`.
 
-Create a .env file using the example.env template (make a copy using the variables inside of the template)
+### Environment Variables
 
-Start flask development server
+Copy `example.env` to `.env` and set:
+
+| Variable | Description |
+|---|---|
+| `URL` | Base URL used when rendering pages (e.g. `localhost:5000`) |
+| `MYSQL_DATABASE` | Database name |
+| `MYSQL_USER` | Database user |
+| `MYSQL_PASSWORD` | Database password |
+| `MYSQL_HOST` | Database host (`mysql` when using Docker Compose) |
+| `MYSQL_ROOT_PASSWORD` | Root password for the MariaDB container |
+
+## Testing
+
 ```bash
-$ export FLASK_ENV=development
-$ flask run
+./run_test.sh
 ```
 
-You should get a response like this in the terminal:
+This installs dependencies and runs the pytest suite, which covers page rendering, the timeline API, and the Peewee models against an isolated in-memory SQLite database.
+
+## Deployment
+
+The production stack (`docker-compose.prod.yml`) adds an nginx container in front of the app for TLS termination and reverse proxying, configured via `user_conf.d/myportfolio.conf`. To deploy the latest `main` branch to the server:
+
+```bash
+./redeploy-site.sh
 ```
-❯ flask run
- * Environment: development
- * Debug mode: on
- * Running on http://127.0.0.1:5000/ (Press CTRL+C to quit)
-```
 
-You'll now be able to access the website at `localhost:5000` or `127.0.0.1:5000` in the browser! 
-
-*Note: The portfolio site will only work on your local machine while you have it running inside of your terminal. We'll go through how to host it in the cloud in the next few weeks!* 
-
-## Contributing
-
-Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
-
-Please make sure to update tests as appropriate.
+This pulls the latest commit, then rebuilds and restarts all containers with zero manual steps.
