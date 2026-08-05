@@ -48,7 +48,7 @@ hobbies = [
         "description": "Nothing beats the smell of freshly baked cookies!"
     },
     {
-        "name": "Travel",
+        "name": "Travelling",
         "image": "travel.jpg",
         "description": "love visiting new cities, trying local food, and exploring new places."
     }
